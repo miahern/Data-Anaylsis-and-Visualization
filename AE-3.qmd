@@ -1,0 +1,286 @@
+---
+title: "AE-3"
+author: "Miley Thompson, Mia Hernandez"
+format: html
+editor: visual
+---
+
+## Description and purpose
+
+This project is to demonstrate understanding of data cleaning and preparation along with analysis and visualization. Here, we, authors Miley and Mia, lay out the code used to explore the data, describing potential problems and solutions, the code used to prepare the data, justifying our choices with prioritization, and the code used to analyse the data, presenting visualizations for the analysis.
+
+## Code
+
+### Data Exploration
+
+```{r}
+###########################################################################
+#exploration script
+#Author: Miley Thomson
+#LIS 4493 Data Stewardship
+###########################################################################
+library(tidyverse)
+library(reshape2)
+library(dplyr)
+
+data <- read.csv("Seattle_Book_Checkouts_2010_2017-1.csv", na.strings = c("", "NA"))
+library_checkouts <- data.frame(data)
+#summarize the data 
+summary(library_checkouts)
+
+#determine missing values 
+na_counts <- library_checkouts %>%
+  summarise_all(~ sum(is.na(.)))
+na_counts
+
+#problem 1: creators contains 33686 missing values, Subjects containt 6131 
+# missing values, Publisher contains 19062 missing values, and PublicationYear
+# contains 19038 "" values
+
+#problem 2: checkout data is split into a year feature and a month feature. It should, for our analysis, be in one single feature.
+
+#viw unique values and their counts in Publication Year
+count_PublicationYear <- melt(table(library_checkouts$PublicationYear))
+count_PublicationYear
+#there are a few problems here. 
+#problem 3: PublicationDate contains information that should be in multiple fields
+# namely, their being both copywrite date and publication date. this should 
+# be altered so that there is a  publication data feild and a copywrited date field
+#problem 4: 
+# the syntax for PublicationDate is not consistent. 
+
+#view unique values in 'Publisher' 
+count_Publisher <- melt(table(library_checkouts$Publisher))
+count_Publisher
+
+#there is a significant problem in Publisher:
+#Problem 5: the syntax of distinct publishers is not consisestent leading to 
+# what should be the same publisher being read as a distinct publisher. 
+# some issues are the presence or lack of spaces in publisher names, the presence of 
+# unnecesary commas, and inconsistent capilatization. 
+
+#view unique values in 'Subjects'
+count_Subjects <- melt(table(library_checkouts$Subjects))
+count_Subjects
+#no major problems are found on initial cursury look. 
+
+#view unique values in 'Creator'
+count_Creator <- melt(table(library_checkouts$Creator))
+count_Creator
+#two issues are noticed in the Creator feature. 
+#problem 6: there are Dates included in some of the creators records which 
+# should not be present. 
+
+#view unique values in 'CheckoutYear'
+count_CheckoutYear <- melt(table(library_checkouts$CheckoutYear))
+count_CheckoutYear
+#no issues are found 
+
+#view unique values in 'CheckoutMonth'
+count_CheckoutMonth <- melt(table(library_checkouts$CheckoutMonth))
+count_CheckoutMonth
+#no issues are found 
+
+#view unique values in 'CheckoutType'
+count_CheckoutType <- melt(table(library_checkouts$CheckoutType))
+count_CheckoutType
+#problem 7: CheckoutType is a meaningless feature as it contains only one value.
+
+#view unique values in 'MaterialType'
+count_MaterialType <- melt(table(library_checkouts$MaterialType))
+count_MaterialType
+#problem 8: MaterialType is a meaningless feature as it contains only one value.
+
+#view unique values in Usage Class
+count_UsageClass <- melt(table(library_checkouts$UsageClass))
+count_UsageClass
+#problem 9: UsageClass is a meaningless feature as it contains only one value.
+
+```
+
+This script's purpose is to explore, understand and diagnose the data. it found a total of 9 issues in the data
+
+1.  Creators contains 33686 missing values, Subjects contains 6131 missing values, Publisher contains 19062 missing values, and PublicationYear contains 19038 missing values
+
+    -   this can be solved by removing records with missing values, however a significant portion of the data would be lost. Another approach is to make additional features which signal whether a field contained a missing value and fill the missing values with a non-significant value.
+
+2.  checkout data is split into a year feature and a month feature. It should, for our analysis, be in one single feature.
+
+    -   this is easily solved by concatenating the features.
+
+3.  PublicationDate contains information that should be in multiple fields namely, their being both copywrite date and publication date. this should be altered so that there is a publication data feild and a copywrited date field \#
+
+    -   the numerics after some distinguish-er (such as the character 'c') should be moved to a separete feature
+
+4.  The syntax for PublicationDate is not consistent.
+
+    -   string manipulation should be applied and modify the values to be consistent
+
+5.  the syntax of distinct publishers is not consisestent leading to what should be the same publisher being read as a distinct publisher. some issues are the presence or lack of spaces in publisher names, the presence of unnecessary commas, and inconsistent capilatization.
+
+    -   a translation table of truly distinct publishers would need to be used and then applied to change records to be consistent.
+
+6.  There are Dates included in some of the creators records which should not be present.
+
+    -   string manipulation should be applied and modify the values to be consistent
+
+7.  CheckoutType is a meaningless feature as it contains only one value.
+
+    -   Feature should be removed.
+
+8.  MaterialType is a meaningless feature as it contains only one value.
+
+    -   Feature should be removed.
+
+9.  UsageClass is a meaningless feature as it contains only one value.
+
+    1.  Feature should be removed.
+
+with the overall problems established, we now think about what specific problems are present for our analysis. We wish to do a burst analysis on the book checkouts themselves. This means we need the features:
+
+-   CheckoutYear
+
+-   CheckoutMonth
+
+-   Checkouts
+
+-   Titles
+
+of these features, only CheckoutYear and CheckoutMonth require a change. We have determined that the quality of the burst analysis is our priority, and will therefore not be removing any records with missing values–as we have no missing values in our chosen features. The primary changes in the cleaning anbd preperation step will then be combining CheckoutYear and CheckoutMonth and dropping other unnecessary features.
+
+### Data Cleaning
+
+```{r}
+###########################################################################
+#cleaning and preparation script
+#Author: Miley Thompson
+#LIS 4493 Data Stewardship
+###########################################################################
+library(tidyverse)
+library(reshape2)
+library(dplyr)
+
+data <- read.csv("Seattle_Book_Checkouts_2010_2017-1.csv", na.strings = c("", "NA"))
+library_checkouts <- data.frame(data)
+library_checkouts_clean <- library_checkouts
+
+#this loop iterates through the dataset, first converting the numeric month to its full name for easy reading. It then concatenates the CheckoutMonthText and CheckoutYear into one feature CheckoutDate. 
+for(i in 1:nrow(library_checkouts)){
+  if (library_checkouts$CheckoutMonth[i] == 1){
+    library_checkouts_clean$CheckoutMonthText[i] <- 'January'
+  }else if (library_checkouts$CheckoutMonth[i] == 2){
+    library_checkouts_clean$CheckoutMonthText[i] <- 'Febuary'
+  }else if (library_checkouts$CheckoutMonth[i] == 3){
+    library_checkouts_clean$CheckoutMonthText[i] <- 'March'
+  }else if (library_checkouts$CheckoutMonth[i] == 4){
+    library_checkouts_clean$CheckoutMonthText[i] <- 'Apil'
+  }else if (library_checkouts$CheckoutMonth[i] == 5){
+    library_checkouts_clean$CheckoutMonthText[i] <- 'May'
+  }else if (library_checkouts$CheckoutMonth[i] == 6){
+    library_checkouts_clean$CheckoutMonthText[i] <- 'June'
+  }else if (library_checkouts$CheckoutMonth[i] == 7){
+    library_checkouts_clean$CheckoutMonthText[i] <- 'July'
+  }else if (library_checkouts$CheckoutMonth[i] == 8){
+    library_checkouts_clean$CheckoutMonthText[i] <- 'August'
+  }else if (library_checkouts$CheckoutMonth[i] == 9){
+    library_checkouts_clean$CheckoutMonthText[i] <- 'September'
+  }else if (library_checkouts$CheckoutMonth[i] == 10){
+    library_checkouts_clean$CheckoutMonthText[i] <- 'October'
+  }else if (library_checkouts$CheckoutMonth[i] == 11){
+    library_checkouts_clean$CheckoutMonthText[i] <- 'November'
+  }else if (library_checkouts$CheckoutMonth[i] == 12){
+    library_checkouts_clean$CheckoutMonthText[i] <- 'December'
+  }else{
+    library_checkouts_clean$CheckoutMonthText[i] <- 'NULL'
+  }
+  
+  library_checkouts_clean$CheckoutDate[i] <- paste(library_checkouts_clean$CheckoutMonthText[i], library_checkouts$CheckoutYear[i])
+}
+
+#create a list of the needed features for analysis 
+features_selected <- c('CheckoutDate','Checkouts','Title')
+
+#create a new data set with only the needed features. 
+library_checkouts_prepared <- library_checkouts_clean[, colnames(library_checkouts_clean) %in% features_selected]
+
+#output the prepared data. 
+write.csv(library_checkouts_prepared, 'prepared_data.csv')
+```
+
+This scripts purpose is to perform a small cleaning/preparation on the data and to isolate the features necessary for the visual analysis. it inputs the data and outputs a prepared data set to use burst analysis on.
+
+### Data Analysis
+
+Among the five proposed data analysis algorithms, we believe Kleinberg's Burst Detection would be the most effective in examining the correlation between book popularity and time trends throughout the year. The model will be using the amount of checkouts, checkout year/month, and titles.
+
+### Initial Coding
+
+Install the necessary packages and begin loading the data
+
+```{r}
+library(readr) # For reading CSV files 
+library(dplyr) # For data manipulation 
+library(bursts) # For Kleinberg's Burst Detection 
+library(ggplot2) # For visualization
+
+# Step 1: Load Data
+
+data <- read.csv("Seattle_Book_Checkouts_2010_2017-1.csv", na.strings = c("", "NA")) 
+library_checkouts <- data.frame(data)
+
+# Step 2: Convert Numeric Month to Full Month Name
+
+library_checkouts_clean <- library_checkouts %\>% 
+  mutate(CheckoutMonthText = month.name[CheckoutMonth], 
+         CheckoutDate = paste(CheckoutMonthText, CheckoutYear))
+
+# Step 3: Select Relevant Features
+
+library_checkouts_prepared <- library_checkouts_clean %\>% select(CheckoutDate, Checkouts, Title)
+
+# Step 4: Summarize Checkout Trends by Month-Year
+
+checkout_trends <- library_checkouts_prepared %\>% 
+group_by(Title, CheckoutDate) %\>% 
+summarise(Total_Checkouts = sum(Checkouts, na.rm = TRUE), .groups = "drop")
+
+
+```
+
+# Apply the Burst model
+
+```{r}
+
+# Step 5: Apply Kleinberg’s Burst Detection for Each Book
+burst_results <- checkout_trends %>%
+  group_by(Title) %>%
+  do({
+    timestamps <- as.numeric(as.Date(.$CheckoutDate, format = "%B %Y"))  # Convert to numeric time
+    event_counts <- .$Total_Checkouts
+
+    # Apply Kleinberg’s Algorithm
+    burst_result <- kleinberg(timestamps, event_counts)
+
+    # Merge burst levels into data
+    data.frame(Title = .$Title, CheckoutDate = .$CheckoutDate, 
+               Total_Checkouts = event_counts, Burst_Level = burst_result$burst_levels)
+  })
+
+# Step 6: Visualize Burst Trends for a Sample Book
+sample_book <- "The Great Gatsby"  # Replace with an actual book title
+plot_data <- burst_results %>% filter(Title == sample_book)
+
+ggplot(plot_data, aes(x = as.Date(CheckoutDate, format = "%B %Y"), 
+                      y = Total_Checkouts, color = as.factor(Burst_Level))) +
+  geom_line() +
+  geom_point(size = 3) +
+  labs(title = paste("Burst Detection for", sample_book),
+       x = "Month-Year",
+       y = "Total Checkouts",
+       color = "Burst Level") +
+  theme_minimal()
+```
+
+# Summary
+
+The Burst Model is a powerful tool for identifying correlations between trending book titles in a library. By detecting sudden spikes in popularity, it helps analyze reading patterns, seasonal trends, and external influences on book demand. This method provides valuable insights into how and when certain titles gain traction, making it useful for collection management and trend forecasting.
